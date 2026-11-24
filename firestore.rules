@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      ).data.role == 'admin';
+    }
+
+    // ------------------------------------------------------------- accounts
+    // A public mirror document that only carries display-safe profile info.
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId
+        && request.resource.data.role == 'resident';
+      // Residents may edit their own profile fields but never their role or
+      // account status; admins may change anything.
+      allow update: if isAdmin() || (isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.accountStatus == resource.data.accountStatus);
+      allow delete: if false;
+    }
+
+    // -------------------------------------------------------------- reports
+    match /reports/{reportId} {
+      allow read: if isSignedIn()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------ document requests
+    match /document_requests/{requestId} {
+      allow read: if isSignedIn()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------- announcements
+    // Published items are world-readable (they appear on the splash gate);
+    // drafts are visible to admins only.
+    match /announcements/{announcementId} {
+      allow read: if isAdmin() || resource.data.published == true;
+      allow write: if isAdmin();
+    }
+
+    // -------------------------------------------------------- notifications
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (resource.data.recipientUserId == request.auth.uid || isAdmin());
+      allow create: if isAdmin();
+      // Residents may only toggle the read flag on their own notifications.
+      allow update: if isAdmin() || (isSignedIn()
+        && resource.data.recipientUserId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']));
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------ directory / hotlines / map (public reads)
+    match /directory/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /emergency_contacts/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /locations/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --------------------------------------- counters for reference numbers
+    match /counters/{id} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}

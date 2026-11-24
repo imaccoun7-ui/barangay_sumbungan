@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Evidence photos for reports.organisation. Upload is limited to the
+    // signed-in owner's own folder, max 5 MB, images only.
+    match /evidence/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == userId
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+
+    // Announcement banner images managed by admins.
+    match /announcements/{fileName} {
+      allow read: if true;
+      allow write: if false; // Admin uploads go through the console for now.
+    }
+  }
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fidelity V1 brand green, shared by the launcher icon and launch screen. -->
+    <color name="brand_green">#1E5B34</color>
+    <color name="ic_launcher_background">#1E5B34</color>
+</resources>
